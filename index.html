@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThoughtShare - Share Your Random Thoughts & Poems</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <script>
+        if (typeof marked !== 'function') {
+            marked = function(text) {
+                return text.replace(/\n/g, '<br>');
+            };
+            console.warn('Marked library not loaded, using fallback');
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(45deg, #6366f1, #a855f7);
+        }
+        
+        .thought-card {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .thought-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+
+        .content-preview {
+            max-height: 150px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .content-preview::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: linear-gradient(transparent, white);
+        }
+
+        .card-shine {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-shine::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                45deg,
+                transparent,
+                rgba(255,255,255,0.2),
+                transparent
+            );
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
+        }
+
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .modal-overlay {
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+
+        .emoji-reaction {
+            transition: all 0.2s ease;
+        }
+
+        .emoji-reaction:hover {
+            transform: scale(1.2);
+        }
+
+        .type-badge {
+            animation: badgePop 0.3s ease-out;
+        }
+
+        @keyframes badgePop {
+            0% { transform: scale(0); }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen custom-scrollbar bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 px-4 py-3 bg-white bg-opacity-90 backdrop-blur-md shadow-lg">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 floating">ThoughtShare</h1>
+            <div class="flex gap-4">
+                <div id="userSection" class="hidden items-center gap-4">
+                    <span id="userInfo" class="text-gray-600"></span>
+                    <button onclick="toggleAdminDashboard()" id="adminDashboardBtn" class="hidden px-4 py-2 rounded-lg bg-indigo-600 text-white shadow-md hover:bg-indigo-700 transition-all duration-300">
+                        Dashboard
+                    </button>
+                </div>
+                <button onclick="toggleSearch()" class="px-4 py-2 rounded-lg bg-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2">
+                    <span>🔍</span>
+                    <span class="hidden sm:inline">Search</span>
+                </button>
+                <button onclick="toggleNewContent()" id="shareBtn" class="hidden px-4 py-2 rounded-lg gradient-bg text-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2 pulse">
+                    <span>✏️</span>
+                    <span class="hidden sm:inline">Share Something</span>
+                </button>
+                <button onclick="toggleAuthModal()" id="authBtn" class="px-4 py-2 rounded-lg gradient-bg text-white shadow-md hover:shadow-lg transition-all duration-300">
+                    Login
+                </button>
+                <button onclick="logout()" id="logoutBtn" class="hidden px-4 py-2 rounded-lg bg-red-500 text-white shadow-md hover:bg-red-600 transition-all duration-300">
+                    Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-md mx-4 animate__animated animate__fadeInUp shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="authTitle" class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Login</h2>
+                <button onclick="toggleAuthModal()" class="text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+            </div>
+            <form id="authForm" onsubmit="handleAuth(event)">
+                <input type="text" id="username" placeholder="Username" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                <input type="password" id="password" placeholder="Password" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                <div id="adminFields" class="hidden">
+                    <input type="password" id="adminSecret" placeholder="Admin Secret" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="isAdmin" onchange="toggleAdminFields()">
+                        <span class="text-sm text-gray-600">Register as admin</span>
+                    </label>
+                    <button type="button" onclick="toggleAuthMode()" class="text-indigo-600 hover:text-indigo-800 transition-colors">
+                        <span id="authToggleText">Need an account?</span>
+                    </button>
+                </div>
+                <button type="submit" class="w-full px-4 py-2 gradient-bg text-white rounded-lg hover:opacity-90 transition">
+                    <span id="authButtonText">Login</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard Modal -->
+    <div id="adminDashboard" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-4xl mx-4 animate__animated animate__fadeInUp shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Admin Dashboard</h2>
+                <button onclick="toggleAdminDashboard()" class="text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-indigo-100 p-4 rounded-lg">
+                    <h3 class="text-lg font-bold text-indigo-800 mb-2">Total Thoughts</h3>
+                    <p id="totalThoughts" class="text-2xl font-bold text-indigo-600">-</p>
+                </div>
+                <div class="bg-purple-100 p-4 rounded-lg">
+                    <h3 class="text-lg font-bold text-purple-800 mb-2">Total Users</h3>
+                    <p id="totalUsers" class="text-2xl font-bold text-purple-600">-</p>
+                </div>
+                <div class="bg-pink-100 p-4 rounded-lg">
+                    <h3 class="text-lg font-bold text-pink-800 mb-2">Latest Activity</h3>
+                    <p id="latestActivity" class="text-sm text-pink-600">-</p>
+                </div>
+            </div>
+            <div class="mb-4">
+                <h3 class="text-lg font-bold mb-2">Recent Thoughts</h3>
+                <div id="recentThoughts" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Content Form -->
+    <div id="contentForm" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-2xl mx-4 animate__animated animate__fadeInUp shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Share Your Thoughts</h2>
+                <button onclick="toggleNewContent()" class="text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+            </div>
+            <select id="contentType" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                <option value="thought">Random Thought</option>
+                <option value="poem">Poem</option>
+                <option value="quote">Quote</option>
+                <option value="story">Short Story</option>
+            </select>
+            <input type="text" id="contentTitle" placeholder="Title" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+            <input type="text" id="authorNickname" placeholder="Nickname (optional)" class="w-full p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+            <textarea id="contentText" placeholder="Write your thoughts... (Markdown supported)" class="w-full h-64 p-3 mb-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"></textarea>
+            <div id="preview" class="hidden mb-4 p-4 rounded-lg bg-gray-50"></div>
+            <div class="flex justify-between items-center">
+                <button onclick="togglePreview()" class="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                    Toggle Preview
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="toggleNewContent()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button onclick="saveContent()" class="px-4 py-2 gradient-bg text-white rounded-lg hover:opacity-90 transition">
+                        Share
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Detail Modal -->
+    <div id="contentDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-3xl mx-4 animate__animated animate__fadeInUp max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="detailTitle" class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500"></h2>
+                <button onclick="toggleContentDetail()" class="text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+            </div>
+            <div id="detailMetadata" class="flex items-center gap-4 text-gray-600 mb-4"></div>
+            <div id="detailContent" class="prose max-w-none"></div>
+            <div class="mt-6 border-t pt-4">
+                <div class="flex items-center justify-between">
+                    <div id="detailViews" class="flex items-center gap-2"></div>
+                    <div id="reactions" class="flex gap-2"></div>
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <div id="detailDate" class="text-sm text-gray-500"></div>
+                    <button id="deleteThoughtBtn" onclick="deleteThought()" class="hidden px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="searchModal" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-xl mx-4 animate__animated animate__fadeInDown shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Search Content</h2>
+                <button onclick="toggleSearch()" class="text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+            </div>
+            <div class="relative">
+                <input type="text" id="searchInput" onkeyup="searchContent()" placeholder="Search by title or content..." 
+                       class="w-full p-3 pl-10 border rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                <span class="absolute left-3 top-3 text-gray-400">🔍</span>
+            </div>
+            <div id="searchResults" class="mt-4 max-h-96 overflow-y-auto custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <!-- Content List -->
+    <main class="container mx-auto p-4 pt-24 pb-32">
+        <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h2 class="text-2xl font-bold text-gray-700">Recent Shares</h2>
+            <div class="flex gap-4 items-center">
+                <select id="sortBy" onchange="displayContent()" class="p-2 rounded-lg border focus:ring-2 focus:ring-indigo-500 transition-all">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="popular">Most Viewed</option>
+                </select>
+                <select id="filterType" onchange="displayContent()" class="p-2 rounded-lg border focus:ring-2 focus:ring-indigo-500 transition-all">
+                    <option value="all">All Content</option>
+                    <option value="thought">Thoughts</option>
+                    <option value="poem">Poems</option>
+                    <option value="quote">Quotes</option>
+                    <option value="story">Stories</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3" id="contentList"></div>
+    </main>
+
+    <script>
+        const API_URL = 'https://backend-7sk4.onrender.com';
+        let currentContent = null;
+        let isAdmin = false;
+        let currentUser = null;
+        let authToken = localStorage.getItem('token');
+
+        // Check authentication status on load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            displayContent();
+            window.addEventListener('unhandledrejection', event => {
+                handleFetchError(event.reason, 'An unexpected error occurred');
+            });
+        });
+
+        // Auth Functions
+        function checkAuth() {
+            if (authToken) {
+                const payload = parseJwt(authToken);
+                currentUser = payload;
+                isAdmin = payload.isAdmin;
+                updateUIForAuth();
+            }
+        }
+
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                return JSON.parse(window.atob(base64));
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function updateUIForAuth() {
+            document.getElementById('userSection').style.display = 'flex';
+            document.getElementById('userInfo').textContent = `Welcome, ${currentUser.username}`;
+            document.getElementById('authBtn').classList.add('hidden');
+            document.getElementById('logoutBtn').classList.remove('hidden');
+            document.getElementById('shareBtn').classList.remove('hidden');
+            
+            if (isAdmin) {
+                document.getElementById('adminDashboardBtn').classList.remove('hidden');
+            }
+        }
+
+        async function handleAuth(event) {
+            event.preventDefault();
+            const isLogin = document.getElementById('authButtonText').textContent === 'Login';
+            const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+            
+            const data = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+
+            if (!isLogin && document.getElementById('isAdmin').checked) {
+                data.isAdmin = true;
+                data.adminSecret = document.getElementById('adminSecret').value;
+            }
+
+            try {
+                const response = await fetch(API_URL + endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                const { token } = await response.json();
+                localStorage.setItem('token', token);
+                authToken = token;
+                checkAuth();
+                toggleAuthModal();
+                showNotification(isLogin ? 'Login successful!' : 'Registration successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            authToken = null;
+            currentUser = null;
+            isAdmin = false;
+            location.reload();
+        }
+
+        // Content Functions
+        async function displayContent() {
+            const contentList = document.getElementById('contentList');
+            const filterType = document.getElementById('filterType').value;
+            const sortBy = document.getElementById('sortBy').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/thoughts`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const contents = await response.json();
+                if (!Array.isArray(contents)) throw new Error('Invalid data format received from server');
+
+                let filteredContents = filterType === 'all' ? 
+                    contents : 
+                    contents.filter(content => content.type === filterType);
+
+                filteredContents.sort((a, b) => {
+                    switch(sortBy) {
+                        case 'oldest': return new Date(a.timestamp) - new Date(b.timestamp);
+                        case 'popular': return (b.views || 0) - (a.views || 0);
+                        default: return new Date(b.timestamp) - new Date(a.timestamp);
+                    }
+                });
+
+                contentList.innerHTML = filteredContents.length ? 
+                    filteredContents.map(content => createContentCard(content)).join('') :
+                    createEmptyState();
+
+            } catch (error) {
+                handleFetchError(error, 'Failed to load content');
+                contentList.innerHTML = createErrorState();
+            }
+        }
+
+        function createContentCard(content) {
+            const processedText = typeof marked === 'function' 
+                ? marked(escapeHtml(content.text))
+                : escapeHtml(content.text).replace(/\n/g, '<br>');
+
+            return `
+                <article class="thought-card bg-white rounded-xl shadow-md p-6 card-shine cursor-pointer animate__animated animate__fadeIn" 
+                         onclick="toggleContentDetail('${encodeURIComponent(JSON.stringify(content))}')">
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">
+                            ${escapeHtml(content.title)}
+                        </h2>
+                        <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-sm type-badge">
+                            ${escapeHtml(content.type)}
+                        </span>
+                    </div>
+                    <div class="text-sm text-gray-600 mb-2">
+                        By ${escapeHtml(content.author || 'Anonymous')}
+                    </div>
+                    <div class="content-preview prose max-w-none">
+                        ${processedText}
+                    </div>
+                    <div class="mt-4 flex justify-between items-center text-sm text-gray-500">
+                        <span>👁️ ${content.views || 0} views</span>
+                        <span>${escapeHtml(content.date)}</span>
+                    </div>
+                </article>
+            `;
+        }
+
+        async function saveContent() {
+            if (!authToken) {
+                showNotification('Please login to share content', 'error');
+                return;
+            }
+
+            const title = document.getElementById('contentTitle').value.trim();
+            const text = document.getElementById('contentText').value.trim();
+            const type = document.getElementById('contentType').value;
+            const author = document.getElementById('authorNickname').value.trim() || currentUser.username;
+            
+            if (!title || !text) {
+                showNotification(`Please fill in all required fields`, 'error');
+                return;
+            }
+
+            const content = {
+                title,
+                text,
+                type,
+                author,
+                date: new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                views: 0,
+                reactions: {},
+                timestamp: Date.now()
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/thoughts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(content)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to save content');
+                }
+                
+                const savedContent = await response.json();
+                toggleNewContent();
+                displayContent();
+                showNotification('Your thought has been shared successfully!', 'success');
+                setTimeout(() => toggleContentDetail(encodeURIComponent(JSON.stringify(savedContent))), 500);
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function deleteThought() {
+            if (!currentContent || !isAdmin) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/thoughts/${currentContent._id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to delete content');
+
+                toggleContentDetail();
+                displayContent();
+                showNotification('Content deleted successfully', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Reaction handling
+        async function addReaction(emoji) {
+            if (!authToken) {
+                showNotification('Please login to react to posts', 'error');
+                return;
+            }
+            
+            if (!currentContent || !currentContent._id) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/thoughts/${currentContent._id}/react`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ emoji })
+                });
+                
+                if (!response.ok) throw new Error('Failed to add reaction');
+                
+                const updatedContent = await response.json();
+                currentContent = updatedContent;
+                setupReactions(updatedContent);
+                
+                const btn = document.querySelector(`button[data-emoji="${emoji}"]`);
+                if (btn) {
+                    btn.classList.add('animate__animated', 'animate__bounce');
+                    setTimeout(() => btn.classList.remove('animate__animated', 'animate__bounce'), 1000);
+                }
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Admin Dashboard
+        async function loadAdminDashboard() {
+            if (!isAdmin) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/admin/dashboard`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load dashboard data');
+
+                const data = await response.json();
+                
+                document.getElementById('totalThoughts').textContent = data.totalThoughts;
+                document.getElementById('totalUsers').textContent = data.totalUsers;
+                document.getElementById('latestActivity').textContent = 
+                    `Latest thought posted ${new Date(data.recentThoughts[0]?.timestamp).toLocaleString()}`;
+
+                document.getElementById('recentThoughts').innerHTML = data.recentThoughts
+                    .map(thought => `
+                        <div class="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
+                            <div>
+                                <h4 class="font-bold">${escapeHtml(thought.title)}</h4>
+                                <p class="text-sm text-gray-600">by ${escapeHtml(thought.author)}</p>
+                            </div>
+                            <button onclick="deleteThought('${thought._id}')"
+                                    class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition">
+                                Delete
+                            </button>
+                        </div>
+                    `)
+                    .join('');
+
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // UI Toggles and Utilities
+        function toggleAuthModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('username').focus();
+            }
+        }
+
+        function toggleAuthMode() {
+            const isLogin = document.getElementById('authButtonText').textContent === 'Login';
+            document.getElementById('authTitle').textContent = isLogin ? 'Register' : 'Login';
+            document.getElementById('authButtonText').textContent = isLogin ? 'Register' : 'Login';
+            document.getElementById('authToggleText').textContent = isLogin ? 'Already have an account?' : 'Need an account?';
+            document.getElementById('adminFields').classList.add('hidden');
+            document.getElementById('isAdmin').checked = false;
+        }
+
+        function toggleAdminFields() {
+            const adminFields = document.getElementById('adminFields');
+            const isAdmin = document.getElementById('isAdmin').checked;
+            adminFields.classList.toggle('hidden', !isAdmin);
+        }
+
+        function toggleNewContent() {
+            const modal = document.getElementById('contentForm');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('contentTitle').focus();
+            } else {
+                // Clear form
+                document.getElementById('contentTitle').value = '';
+                document.getElementById('contentText').value = '';
+                document.getElementById('authorNickname').value = '';
+                document.getElementById('preview').classList.add('hidden');
+            }
+        }
+
+        function toggleContentDetail(contentString) {
+            const modal = document.getElementById('contentDetailModal');
+            if (contentString) {
+                currentContent = JSON.parse(decodeURIComponent(contentString));
+                updateDetailView();
+                incrementViews(currentContent._id);
+            }
+            modal.classList.toggle('hidden');
+        }
+
+        function toggleAdminDashboard() {
+            const dashboard = document.getElementById('adminDashboard');
+            dashboard.classList.toggle('hidden');
+            if (!dashboard.classList.contains('hidden')) {
+                loadAdminDashboard();
+            }
+        }
+
+        function toggleSearch() {
+            const modal = document.getElementById('searchModal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('searchInput').focus();
+            }
+        }
+
+        function togglePreview() {
+            const preview = document.getElementById('preview');
+            const text = document.getElementById('contentText').value;
+            preview.innerHTML = marked(escapeHtml(text));
+            preview.classList.toggle('hidden');
+        }
+
+        // Search functionality
+        function searchContent() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const resultsContainer = document.getElementById('searchResults');
+
+            if (!searchTerm) {
+                resultsContainer.innerHTML = '';
+                return;
+            }
+
+            fetch(`${API_URL}/api/thoughts`)
+                .then(response => response.json())
+                .then(contents => {
+                    const filtered = contents.filter(content =>
+                        content.title.toLowerCase().includes(searchTerm) ||
+                        content.text.toLowerCase().includes(searchTerm)
+                    );
+
+                    resultsContainer.innerHTML = filtered.length ?
+                        filtered.map(content => `
+                            <div class="p-4 border-b cursor-pointer hover:bg-gray-50 transition"
+                                 onclick="toggleSearch(); toggleContentDetail('${encodeURIComponent(JSON.stringify(content))}')">
+                                <h3 class="font-bold">${escapeHtml(content.title)}</h3>
+                                <p class="text-sm text-gray-600">${escapeHtml(content.text.substring(0, 100))}...</p>
+                            </div>
+                        `).join('') :
+                        '<div class="p-4 text-gray-500">No results found</div>';
+                })
+                .catch(error => handleFetchError(error, 'Search failed'));
+        }
+
+        function updateDetailView() {
+            if (!currentContent) return;
+
+            document.getElementById('detailTitle').textContent = currentContent.title;
+            document.getElementById('detailMetadata').innerHTML = `
+                <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800">${currentContent.type}</span>
+                <span>By ${escapeHtml(currentContent.author)}</span>
+            `;
+            document.getElementById('detailContent').innerHTML = marked(escapeHtml(currentContent.text));
+            document.getElementById('detailViews').innerHTML = `👁️ ${currentContent.views || 0} views`;
+            document.getElementById('detailDate').textContent = currentContent.date;
+            document.getElementById('deleteThoughtBtn').classList.toggle('hidden', !isAdmin);
+
+            setupReactions(currentContent);
+        }
+
+        function setupReactions(content) {
+            const reactions = document.getElementById('reactions');
+            const emojis = ['👍', '❤️', '😂', '😮', '😢'];
+            
+            reactions.innerHTML = emojis.map(emoji => `
+                <button onclick="addReaction('${emoji}')"
+                        class="emoji-reaction px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                        data-emoji="${emoji}">
+                    ${emoji} ${(content.reactions && content.reactions[emoji]) || 0}
+                </button>
+            `).join('');
+        }
+
+        async function incrementViews(thoughtId) {
+            try {
+                const response = await fetch(`${API_URL}/api/thoughts/${thoughtId}/view`, {
+                    method: 'PATCH'
+                });
+                if (!response.ok) throw new Error('Failed to update views');
+                const updated = await response.json();
+                currentContent.views = updated.views;
+                document.getElementById('detailViews').innerHTML = `👁️ ${updated.views} views`;
+            } catch (error) {
+                console.error('Error updating views:', error);
+            }
+        }
+
+        function createEmptyState() {
+            return `
+                <div class="col-span-full flex flex-col items-center justify-center p-8 text-gray-500">
+                    <div class="text-6xl mb-4">🤔</div>
+                    <h3 class="text-xl font-bold mb-2">No thoughts found</h3>
+                    <p>Be the first to share something!</p>
+                </div>
+            `;
+        }
+
+        function createErrorState() {
+            return `
+                <div class="col-span-full flex flex-col items-center justify-center p-8 text-gray-500">
+                    <div class="text-6xl mb-4">😅</div>
+                    <h3 class="text-xl font-bold mb-2">Oops! Something went wrong</h3>
+                    <p>Please try again later</p>
+                </div>
+            `;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg animate__animated animate__fadeIn z-50 ${
+                type === 'error' ? 'bg-red-500' : 'bg-green-500'
+            } text-white`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.classList.replace('animate__fadeIn', 'animate__fadeOut');
+                setTimeout(() => notification.remove(), 500);
+            }, 3000);
+        }
+
+        function handleFetchError(error, defaultMessage) {
+            console.error('API Error:', error);
+            showNotification(error.message || defaultMessage, 'error');
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
